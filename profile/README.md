@@ -21,6 +21,28 @@
 
 ---
 
+## Try it
+
+Each line is the whole interaction.
+
+```sh
+# Pull a published agent and chat
+otters run --name hello ghcr.io/openotters/agents/base:latest && otters chat hello
+
+# Pipe an inline Agentfile and chat
+echo 'FROM scratch
+RUNTIME ghcr.io/openotters/runtime:latest
+MODEL anthropic/claude-haiku-4-5-20251001
+NAME dev' | otters run - --name dev && otters chat dev
+
+# Drive a tool-using agent without the chat loop
+otters run --name weather ghcr.io/openotters/agents/meteo:latest && echo 'weather in Lyon' | otters prompt weather
+```
+
+The third one is the interesting one: `meteo` ships with `wget` + `jq` BIN
+tools, so the agent fetches Open-Meteo and parses the JSON itself — the
+prompt just kicks off the tool chain, no shell, no glue code.
+
 ## What is OpenOtters?
 
 An open-source platform for packaging AI agents as **portable OCI images**. You
