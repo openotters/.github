@@ -1,73 +1,152 @@
 <h1 align="center">🦦 OpenOtters</h1>
 
 <p align="center">
-  <strong>Build, ship, and run autonomous AI agents — like containers, but for intelligence.</strong>
+  <strong>AI agents as OCI artifacts — declare them, build them, ship them, run them.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/openotters/openotters"><img alt="otters CLI release" src="https://img.shields.io/github/v/release/openotters/openotters?label=otters&sort=semver"></a>
+  <a href="https://github.com/openotters/agentfile"><img alt="agentfile release" src="https://img.shields.io/github/v/release/openotters/agentfile?label=agentfile&sort=semver"></a>
+  <a href="https://github.com/openotters/runtime"><img alt="runtime release" src="https://img.shields.io/github/v/release/openotters/runtime?label=runtime&sort=semver"></a>
+  <a href="https://github.com/openotters/bin"><img alt="bin release" src="https://img.shields.io/github/v/release/openotters/bin?label=bin&sort=semver"></a>
+  <img alt="License" src="https://img.shields.io/github/license/openotters/openotters">
 </p>
 
 <p align="center">
   <a href="https://github.com/openotters/agentfile">Agentfile</a> ·
-  <a href="https://github.com/openotters/openotters">CLI & Daemon</a> ·
+  <a href="https://github.com/openotters/openotters">CLI &amp; daemon</a> ·
   <a href="https://github.com/openotters/runtime">Runtime</a> ·
   <a href="https://github.com/openotters/bin">Tools</a>
 </p>
 
 ---
 
-### What is OpenOtters?
+## What is OpenOtters?
 
-OpenOtters is an open-source platform for packaging and running AI agents as OCI artifacts. Define your agent in an
-**Agentfile** — its model, tools, personality, and data — build it into a portable image, push it to any registry,
-and run it anywhere.
+An open-source platform for packaging AI agents as **portable OCI images**. You
+write one declarative file — model, prompts, mounted data, allow-listed tools —
+and `otters` builds it into an image you can push to any registry and run
+anywhere a Linux/macOS host can dial Anthropic, OpenAI, OpenRouter, Ollama, or
+any other OpenAI-compatible endpoint.
 
-```agentfile
+Agents are artifacts, not applications. No SDK to import. No bespoke deploys.
+Just `otters run`.
+
+```dockerfile
 FROM scratch
-MODEL anthropic/claude-sonnet-4-20250514
-NAME support-bot
+
+RUNTIME ghcr.io/openotters/runtime:latest
+MODEL anthropic/claude-haiku-4-5-20251001
+NAME meteo
 
 CONTEXT SOUL <<EOF
-You are a helpful support agent.
+You are a weather assistant. Use wget to fetch the Open-Meteo API,
+jq to extract fields, and report temperature in °C.
 EOF
 
-BIN wget ghcr.io/openotters/tools/wget:latest "Fetch URLs"
-BIN jq   ghcr.io/openotters/tools/jq:latest   "Process JSON"
+CONFIG max-tokens=1024
+CONFIG max-iterations=10
+
+BIN wget ghcr.io/openotters/tools/wget:latest "Fetch URL content"
+BIN jq   ghcr.io/openotters/tools/jq:latest   "Extract fields from JSON"
+BIN cat  ghcr.io/openotters/tools/cat:latest  "Read file contents"
+
+ADD cities.json /data/workspace/cities.json "Known city coordinates"
 ```
 
 ```sh
-openotters build -f Agentfile
-openotters run support-bot:latest
-openotters chat support-bot
+otters image build -t meteo:latest .
+otters run meteo:latest
+otters chat meteo
 ```
 
-### Why?
+## Why?
 
-Most agent frameworks are libraries — you write code, manage dependencies, and deploy custom binaries. OpenOtters
-takes a different approach: **agents are artifacts, not applications**.
+- 📦 **Portable** — push to GHCR, Docker Hub, or any OCI registry; pull and run
+  on a different host with one command.
+- 🔒 **Secrets stay in env** — API keys never land in `agent.yaml` or `ps`
+  output; the daemon injects them as `<PROVIDER>_API_KEY` env on the runtime
+  subprocess.
+- 🧬 **Composable** — `FROM` an existing agent image to inherit its prompts,
+  tools, and mounts; override what you need.
+- 🛠️ **48 tool binaries** — `wget`, `jq`, `grep`, `find`, `printenv`, `sh`,
+  `jina`, … each shipped as a static multi-arch OCI image.
+- 🧠 **Memory built in** — conversation history with automatic compaction;
+  resumable across daemon restarts.
+- ♻️ **Self-healing** — agents that fail to start retry with exponential
+  backoff; fix `~/.otters/providers.yaml` and the daemon picks it up on the
+  next attempt without a restart.
+- 📋 **Declarative** — one Agentfile describes the whole agent. No code, no
+  YAML, no multi-step build script.
 
-- 📦 **Portable** — OCI images, any registry, any environment
-- 🔒 **Secure by default** — no shell, no exec, only declared tools
-- 🧬 **Composable** — inherit from parent agents with `FROM`
-- 🧠 **Built-in memory** — conversation history with automatic compaction
-- 🛠️ **46 tools** — ready-to-use static binaries (wget, jq, grep, find, …)
-- 📋 **Declarative** — one file describes the full agent, no code required
-
-### Repositories
+## Repositories
 
 | Repository | Description |
 |------------|-------------|
-| [**agentfile**](https://github.com/openotters/agentfile) | Agentfile spec, parser, builder, and executor — the core library |
-| [**openotters**](https://github.com/openotters/openotters) | CLI and daemon — build, run, and manage agents from your terminal |
-| [**runtime**](https://github.com/openotters/runtime) | Single-agent gRPC runtime with tools, memory, and streaming |
-| [**bin**](https://github.com/openotters/bin) | 46 tool binaries packaged as multi-arch OCI images |
+| [**agentfile**](https://github.com/openotters/agentfile) | Spec, parser, builder, OCI store, lifecycle library. The single source of truth for the Agentfile format. |
+| [**openotters**](https://github.com/openotters/openotters) | The `otters` CLI and `ottersd` daemon — build, run, manage, chat. |
+| [**runtime**](https://github.com/openotters/runtime) | Single-agent gRPC runtime that the daemon spawns per agent: model bridge, tool dispatch, memory, streaming. |
+| [**bin**](https://github.com/openotters/bin) | 48 static tool binaries packaged as multi-arch OCI images. |
 
-### Get started
+## Quick start
+
+**Install** (Homebrew, macOS / Linux):
 
 ```sh
-go install github.com/openotters/cli/cmd/openotters@latest
-go install github.com/openotters/cli/cmd/openotters-daemon@latest
+brew install openotters/tap/otters
 ```
 
-Head over to the [openotters repo](https://github.com/openotters/openotters) for the full quick start guide.
+Or build from source:
 
-### License
+```sh
+go install github.com/openotters/openotters/cmd/otters@latest
+go install github.com/openotters/openotters/cmd/ottersd@latest
+```
 
-MIT
+**Configure a provider** (interactive, picks from the live Catwalk catalog):
+
+```sh
+otters provider add
+```
+
+Or scriptable:
+
+```sh
+echo "$ANTHROPIC_API_KEY" | otters provider add --name anthropic
+```
+
+**Run the daemon**:
+
+```sh
+ottersd serve
+```
+
+**Run an agent**:
+
+```sh
+# from a local Agentfile
+otters run -f Agentfile
+
+# straight from stdin
+cat Agentfile | otters run -
+
+# or pull + run from a registry
+otters run ghcr.io/openotters/agents/meteo:latest
+
+# then chat
+otters chat <agent-name>
+```
+
+The full walkthrough lives in the
+[**openotters**](https://github.com/openotters/openotters) repo.
+
+## Status
+
+OpenOtters is in **`v1.0.0-alpha`** — usable end-to-end, with provider
+hot-reload, env-only credentials, auto-restart, and a 48-tool catalog
+already shipping. The Agentfile spec is stabilising; expect minor breaking
+changes until `v1.0.0` proper.
+
+## License
+
+MIT — see each repository's `LICENSE.md`.
